@@ -1,7 +1,8 @@
-se futures::Future;
+use futures::Future;
 use uuid::Uuid;
 use warp::reply::Reply;
-
+use warp::body::json;
+use warp::reply::json;
 use crate::{Clients, RegisterRequest};
 
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply>{
@@ -26,6 +27,10 @@ async fn register_client(id: String, uid: usize, clients: Clients){
             sender: None,
         },
     );
+}
+async fn unregister_client(id: String, clients: Clients) -> Result<impl Reply>{
+    clients.lock().await.remove(&id);
+    Ok(StatusCode::OK)
 }
 
 pub fn health_handler() -> impl Future<Output = Result<impl Reply>> {
