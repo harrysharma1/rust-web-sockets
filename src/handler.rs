@@ -1,7 +1,7 @@
 use crate::{websocket, Client, Clients, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp::{filters::body, http::StatusCode, reply::json, ws::Message, Reply};
+use warp::{http::StatusCode, reply::json, ws::Message, Reply};
 
 
 #[derive(Deserialize, Debug)]
@@ -74,13 +74,13 @@ async fn register_client(id: String, uid: usize, topic: String, clients: Clients
 
 pub async  fn unregister_handler(id: String, clients: Clients) -> Result<impl Reply> {
     clients.write().await.remove(&id);
-    Ok(StatusCode::OK);
+    Ok(StatusCode::OK)
 }
 
 pub async fn ws_handler(ws: warp::ws::Ws, id: String, clients: Clients) -> Result<impl Reply> {
     let client = clients.read().await.get(&id);
     match client{
-        Some(c) => Ok(ws.on_upgrade(move |socket| ws::client_connection(socket, id, clients, c))),
+        Some(c) => Ok(ws.on_upgrade(move |socket| websocket::client_connection(socket, id, clients, c))),
         None => Err(warp::reject::not_found()),
     }
 }

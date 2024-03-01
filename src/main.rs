@@ -20,6 +20,7 @@ pub struct Client{
     pub sender: Option<mpsc::UnboundedSender<std::result::Result<Message, warp::Error>>>,
 }
 
+#[tokio::main]
 async fn main() {
     let clients:Clients = Arc::new(RwLock::new(HashMap::new()));
     
@@ -54,7 +55,7 @@ async fn main() {
     let add_topic_route = warp::post()
         .and(warp::path("add_topic"))
         .and(warp::body::json::<TopicActionRequest>())
-        .and(warp::any().map(move || clients_for_add.clone()))
+        .and(warp::any().map(move || clients_add.clone()))
         .and_then(add_topic);
 
 
@@ -62,7 +63,7 @@ async fn main() {
     let remove_topic_route = warp::delete()
         .and(warp::path("remove_topic"))
         .and(warp::body::json::<TopicActionRequest>())
-        .and(warp::any().map(move || clients_for_remove.clone()))
+        .and(warp::any().map(move || clients_remove.clone()))
         .and_then(remove_topic);
 
     let routes = health_route
