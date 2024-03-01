@@ -1,43 +1,65 @@
-use futures::Future;
+use crate::{websocket, Client, Clients, Result};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp::reply::Reply;
-use warp::body::json;
-use warp::reply::json;
-use crate::{Clients, RegisterRequest};
+use warp::{filters::body, http::StatusCode, reply::json, ws::Message, Reply};
 
-pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
-  let uid = body.uid;
-  let uuid = Uuid::new_v4().simple().to_string();
 
-  register_client(uuid.clone(), uid, clients).await;
-  Ok(json(&RegisterResponse {
-    url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
-  }))
+#[derive(Deserialize, Debug)]
+pub struct RegisterRequest {
+    uid: usize,
+    topic: String,
 }
 
-async fn register_client(id: String, uid: usize, clients: Clients){
-    clients.lock().await.insert(
-        id,
-        Client{
-            uid,
-            topics: vec![String::from("cats")],
-            sender: None,
-        },
-    );
+#[derive(Deserialize)]
+pub struct TopicActionRequest {
+    topic: String,
+    client_id: String,
 }
-async fn unregister_client(id: String, clients: Clients) -> Result<impl Reply>{
-    clients.lock().await.remove(&id);
+
+
+#[derive(Serialize, Debug)]
+pub struct RegisterResponse {
+    url: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Event {
+    topic: String,
+    uid: Option<usize>,
+    message: String,
+}
+
+pub async publish_handler(body: Event, clients: Clients) -> Result<impl Reply> {
+    clients 
+        .read()
+        .await
+        .iter()
+        .filter(|(_, client)| match body.uid {
+            Some(v) => client.uid == v,
+            None => true,
+        })
+        .filter(|(_, client)| client.topics.contains(&body.topic))
+        .for_each(|(_, client)| {
+            if let Some(sender) = &client.sender {
+                let _ = sender.send(Ok(Message::text(body.message.clone())));
+            }
+        });
+
     Ok(StatusCode::OK)
 }
 
-pub fn health_handler() -> impl Future<Output = Result<impl Reply>> {
-    futures::future::ready(Ok(StatusCode::OK))
+pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
+    let uid = body.uid;
+    let topic = body.topic; // Capture the entry topic
+    let uuid = Uuid::new_v4().as_simple().to_string();
+
+    register_client(uuid.clone(), uid, topic, clients).await; // Pass the entry topic
+    Ok(json(&RegisterResponse {
+        url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
+    }))
 }
 
-pub async fn ws_handler(ws: warp::ws::Ws, id: String, clients: Clients) -> Result<impl Reply>{
-    let client  = clients.lock().await.get(&id).cloned();
-    match client{
-        Some(c) => Ok(ws.on_upgrade(move|socket|ws::cl)),
-        None => Err(warp::reject::not_found()),
-    }
-}
+
+
+
+

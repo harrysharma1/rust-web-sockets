@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 use handler::TopicActionRequest;
