@@ -29,8 +29,9 @@ pub struct Event {
     message: String,
 }
 
-pub async publish_handler(body: Event, clients: Clients) -> Result<impl Reply> {
-    clients 
+
+pub async fn publish_handler(body: Event, clients: Clients) -> Result<impl Reply> {
+    clients
         .read()
         .await
         .iter()
@@ -58,6 +59,52 @@ pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result
         url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
     }))
 }
+
+async fn register_client(id: String, uid: usize, topic: String, clients: Clients){
+    clients.write().await.insert(
+        id, 
+        Client{
+            uid,
+            topics: vec![topic],
+            sender:  None,
+            
+        }
+    );
+}
+
+pub async  fn unregister_handler(id: String, clients: Clients) -> Result<impl Reply> {
+    clients.write().await.remove(&id);
+    Ok(StatusCode::OK);
+}
+
+pub async fn ws_handler(ws: warp::ws::Ws, id: String, clients: Clients) -> Result<impl Reply> {
+    let client = clients.read().await.get(&id);
+    match client{
+        Some(c) => Ok(ws.on_upgrade(move |socket| ws::client_connection(socket, id, clients, c))),
+        None => Err(warp::reject::not_found()),
+    }
+}
+
+pub async fn health_handler() -> Result<impl Reply>{
+    Ok(StatusCode::OK)
+}
+
+pub async fn add_topic(body: TopicActionRequest, clients: Clients) -> Result<impl Reply> {
+    let mut client_write = clients.write().await;
+    if let Some(client) = client_write.get_mut(&body.client_id){
+        client.topics.push(body.topic);
+    }
+    Ok(warp::reply::with_status("Added topic successfully", StatusCode::OK))
+}
+
+pub async fn remove_topic(body: TopicActionRequest, clients: Clients) -> Result<impl Reply> {
+    let mut client_write = clients.write().await;
+    if let Some(client) = client_write.get_mut(&body.client_id){
+        client.topics.retain(|t| t!= &body.topic);
+    }
+    Ok(warp::reply::with_status("Removed topic successfully", StatusCode::OK))
+}
+
 
 
 
